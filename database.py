@@ -3,6 +3,7 @@ import csv
 from pathlib import Path # Using pathlib for path handling
 import json
 from collections import defaultdict # Using defaultdict for easier counting
+import traceback
 
 class HeartDiagnosisDB:
     def __init__(self, db_name="heart_diagnosis.db"):
@@ -132,6 +133,22 @@ class HeartDiagnosisDB:
         # Check cursor result before fetching
         result = cursor.fetchone() if cursor else None
         return result[0] if result else None
+
+    # NEW methods for manual data addition:
+    def add_disease_with_description(self, name, description):
+        """Adds a new disease to the database."""
+        try:
+            self.cursor.execute("INSERT INTO diseases (name, description) VALUES (?, ?)", (name, description))
+            self.conn.commit()
+            return self.cursor.lastrowid
+        except sqlite3.IntegrityError:
+            print(f"Error: Disease '{name}' may already exist (name must be unique).")
+            return None
+        except sqlite3.Error as e:
+            print(f"Database error in add_disease: {e}")
+            return None
+
+
 
     def update_disease_description(self, disease_name, description):
         """Updates the description for an existing disease."""
@@ -339,6 +356,88 @@ class HeartDiagnosisDB:
              print(f"Unexpected error adding rule for '{disease_name}': {e}")
              self.conn.rollback()
              raise # Re-raise unexpected errors
+
+    # --- Rule Management Methods ---
+    def get_or_create_rule_for_disease(self, disease_id):
+        """
+        Gets the existing rule_id for a disease or creates a new one if it doesn't exist.
+        This assumes a disease has one primary 'rule' entry in the 'rules' table,
+        which then links to multiple condition groups.
+        """
+        if disease_id is None:
+            return None
+
+        query_select = "SELECT rule_id FROM rules WHERE disease_id = ?"
+        cursor = self._execute_query(query_select, (disease_id,))
+        result = cursor.fetchone() if cursor else None
+
+        if result:
+            return result[0]  # Existing rule_id
+        else:
+            # Create a new rule for this disease
+            query_insert = "INSERT INTO rules (disease_id) VALUES (?)"
+            insert_cursor = self._execute_query(query_insert, (disease_id,), commit=True)
+            return insert_cursor.lastrowid if insert_cursor else None
+
+    def add_rule_condition_group(self, disease_name, symptom_names_in_group):
+        disease_id = self.get_disease_id(disease_name)
+        if disease_id is None:
+            print(f"Error: Disease '{disease_name}' not found. Cannot add rule group.")
+            return None
+
+        if not symptom_names_in_group:
+            print("Error: No symptoms provided for the condition group.")
+            return None
+
+        rule_id = self.get_or_create_rule_for_disease(disease_id)
+        if rule_id is None:
+            print(f"Error: Could not get or create a rule for disease ID {disease_id}.")
+            return None
+
+        symptom_ids_in_group = []
+        for sym_name in symptom_names_in_group:
+            s_id = self.get_symptom_id(sym_name)
+            if s_id is None:
+                print(f"Warning: Symptom '{sym_name}' not found. It will be skipped for this rule group.")
+            else:
+                symptom_ids_in_group.append(s_id)
+
+        if not symptom_ids_in_group:
+            print("Error: No valid symptoms (after lookup) found for the condition group. Rule group not added.")
+            return None
+
+        try:
+            insert_cg_query = "INSERT INTO condition_groups (rule_id) VALUES (?)"
+            # Committing here ensures group_id is available if the next step fails partially
+            cg_cursor = self._execute_query(insert_cg_query, (rule_id,), commit=True)
+            if not cg_cursor or cg_cursor.lastrowid is None:
+                print(f"Error: Failed to insert into condition_groups for rule_id {rule_id}.")
+                # No explicit rollback needed here as _execute_query doesn't start a transaction
+                # and commit=True was for this single statement.
+                return None
+            new_group_id = cg_cursor.lastrowid
+
+            conditions_to_insert = [(new_group_id, s_id) for s_id in symptom_ids_in_group]
+
+            # For executemany, it's often better to manage transaction explicitly if needed,
+            # but here we'll commit after it's done.
+            # We need a fresh cursor for executemany if the class cursor was used by _execute_query.
+            exec_many_cursor = self.conn.cursor()
+            exec_many_cursor.executemany("INSERT INTO condition_group_symptoms (group_id, symptom_id) VALUES (?, ?)",
+                                         conditions_to_insert)
+            self.conn.commit()
+
+            print(
+                f"Successfully added condition group {new_group_id} for disease '{disease_name}' (rule_id {rule_id}).")
+            return new_group_id
+        except sqlite3.IntegrityError as e:
+            print(f"Database integrity error while adding condition group or its symptoms: {e}")
+            self.conn.rollback()  # Rollback any part of the transaction if one was implicitly started by Python's sqlite3
+            return None
+        except sqlite3.Error as e:
+            print(f"General database error while adding condition group: {e}")
+            self.conn.rollback()
+            return None
 
     def get_rules_for_disease(self, disease_name):
         """
