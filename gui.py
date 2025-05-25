@@ -143,11 +143,11 @@ if db_conn:  # Only proceed if DB connection is successful
                 col1.markdown(display_text, unsafe_allow_html=True)
                 if col2.button("❌", key=f"remove_db_{symptom_name.replace(' ', '_')}", help=f"Remove {symptom_name}"):
                     st.session_state.selected_symptoms.remove(symptom_name)
-                    st.experimental_rerun()  # Rerun to update list and diagnosis
+                    st.rerun()  # Rerun to update list and diagnosis
 
             if st.sidebar.button("Clear All Symptoms", key="clear_all_db"):
                 st.session_state.selected_symptoms = []
-                st.experimental_rerun()  # Rerun
+                st.rerun()  # Rerun
 
             st.sidebar.markdown("---")
             st.sidebar.markdown("##### Severity Legend:")
@@ -226,7 +226,7 @@ if db_conn:  # Only proceed if DB connection is successful
                             if cols[i % num_columns].button(s_name, key=button_key):
                                 if s_name not in st.session_state.selected_symptoms:
                                     st.session_state.selected_symptoms.append(s_name)
-                                    st.experimental_rerun()  # Rerun to reflect added symptom
+                                    st.rerun()  # Rerun to reflect added symptom
                     else:
                         st.info("No new relevant symptoms to suggest, or all suggestions are already selected.")
                 elif st.session_state.selected_symptoms:  # If symptoms selected but no predictions
