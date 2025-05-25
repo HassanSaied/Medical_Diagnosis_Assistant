@@ -113,10 +113,6 @@ To customize the application:
 - Verify that the database schema matches what's expected by the application
 - Check the console for any error messages
 
-## License
-
-[Specify your license here]
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
