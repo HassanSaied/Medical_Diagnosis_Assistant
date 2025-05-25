@@ -143,11 +143,11 @@ if db_conn:  # Only proceed if DB connection is successful
                 col1.markdown(display_text, unsafe_allow_html=True)
                 if col2.button("❌", key=f"remove_db_{symptom_name.replace(' ', '_')}", help=f"Remove {symptom_name}"):
                     st.session_state.selected_symptoms.remove(symptom_name)
-                    st.rerun()  # Rerun to update list and diagnosis
+                    st.experimental_rerun()  # Rerun to update list and diagnosis
 
             if st.sidebar.button("Clear All Symptoms", key="clear_all_db"):
                 st.session_state.selected_symptoms = []
-                st.rerun()  # Rerun
+                st.experimental_rerun()  # Rerun
 
             st.sidebar.markdown("---")
             st.sidebar.markdown("##### Severity Legend:")
@@ -226,7 +226,7 @@ if db_conn:  # Only proceed if DB connection is successful
                             if cols[i % num_columns].button(s_name, key=button_key):
                                 if s_name not in st.session_state.selected_symptoms:
                                     st.session_state.selected_symptoms.append(s_name)
-                                    st.rerun()  # Rerun to reflect added symptom
+                                    st.experimental_rerun()  # Rerun to reflect added symptom
                     else:
                         st.info("No new relevant symptoms to suggest, or all suggestions are already selected.")
                 elif st.session_state.selected_symptoms:  # If symptoms selected but no predictions
@@ -279,7 +279,7 @@ if db_conn:  # Only proceed if DB connection is successful
         #             if success:
         #                 st.success("Data imported successfully from JSON files!")
         #                 initialize_session_state(force_reload=True)  # Refresh all session data
-        #                 st.rerun()
+        #                 st.experimental_rerun()
         #             else:
         #                 st.error("Data import failed. Check console for error messages from dataImporter.py.")
         #
@@ -318,19 +318,16 @@ if db_conn:  # Only proceed if DB connection is successful
         with st.expander("Add New Symptom"):
             with st.form("new_symptom_form", clear_on_submit=True):
                 new_symptom_desc = st.text_input("Symptom Description (Unique)")
-                new_symptom_severity = st.number_input("Symptom Severity (e.g., 1-10)", min_value=0, max_value=10,
-                                                       step=1, value=None, placeholder="Optional")
+                new_symptom_severity = st.number_input("Symptom Severity (1-10)", min_value=1, max_value=10, step=1, key="new_symptom_severity")
                 submitted_symptom = st.form_submit_button("Add Symptom")
                 if submitted_symptom:
                     if new_symptom_desc:
-                        symptom_id = db_conn.add_symptom(new_symptom_desc,
-                                                         new_symptom_severity if new_symptom_severity is not None else None)
+                        symptom_id = db_conn.add_symptom(new_symptom_desc, new_symptom_severity)
                         if symptom_id:
                             st.success(f"Symptom '{new_symptom_desc}' added/updated.")
                             initialize_session_state(force_reload=True)
                         else:
-                            st.error(
-                                f"Failed to add symptom '{new_symptom_desc}'. It might already exist with different severity, or an error occurred.")
+                            st.error(f"Failed to add symptom '{new_symptom_desc}'. It might already exist with different severity, or an error occurred.")
                     else:
                         st.warning("Symptom description is required.")
 

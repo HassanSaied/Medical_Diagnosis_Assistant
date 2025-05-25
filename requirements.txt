@@ -1,0 +1,15 @@
+# Core Dependencies
+streamlit
+pandas
+numpy
+
+# Development Dependencies
+pytest
+black
+flake8
+
+# Database
+sqlite3
+
+# For data processing
+python-dotenv
